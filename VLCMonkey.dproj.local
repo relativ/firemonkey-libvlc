@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899.12.30 00:00:00.000.730,=E:\Projeler\adMaster\components\FireMonkeyVideo\Direct3D9.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.272,=E:\Projeler\adMaster\components\FireMonkeyVideo\DXFile.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.275,E:\Projeler\adMaster\components\FireMonkeyVideo\DXFile.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.914,E:\Projeler\adMaster\components\FireMonkeyVideo\Direct3D9.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.178,=rtl.dcp</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.305,=E:\Projeler\adMaster\components\FireMonkeyVideo\VLCInstance.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.488,E:\Projeler\adMaster\components\FireMonkeyVideo\VLCInstance.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.494,=fmx.dcp</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.491,=E:\Projeler\adMaster\components\FireMonkeyVideo\Effect1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.763,E:\Projeler\adMaster\components\FireMonkeyVideo\Effect1.pas=E:\Projeler\adMaster\components\FireMonkeyVideo\AnaglyphEffect.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.378,E:\Projeler\adMaster\components\FireMonkeyVideo\sdl.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.445,C:\Users\srkgns\Documents\RAD Studio\Projects\Package1.dproj=E:\Projeler\adMaster\components\FireMonkeyVideo\VLCMonkey.dproj</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.704,F:\projeler\adMaster\components\FireMonkeyVideo\VLCVideo.pas=F:\projeler\adMaster\components\FireMonkeyVideo\Serkan.VLCVideo.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.684,=E:\Projeler\adMaster\components\FireMonkeyVideo\sdl.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.489,E:\Projeler\adMaster\components\FireMonkeyVideo\PasLibVlcClassUnit.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.243,E:\Projeler\adMaster\components\FireMonkeyVideo\StaticFuncs.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.770,=DCEF_XE2.dcp</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.458,=E:\Projeler\adMaster\components\FireMonkeyVideo\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.687,E:\Projeler\adMaster\components\FireMonkeyVideo\StaticFuncs.pas=E:\Projeler\adMaster\components\FireMonkeyVideo\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.115,=E:\Projeler\adMaster\components\FireMonkeyVideo\DXTypes.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.059,E:\Projeler\adMaster\components\FireMonkeyVideo\DXTypes.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.524,=E:\Projeler\adMaster\components\FireMonkeyVideo\VLCVideo.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.863,=E:\Projeler\adMaster\components\FireMonkeyVideo\PasLibVlcClassUnit.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.409,E:\Projeler\adMaster\components\FireMonkeyVideo\PasLibVlcClassUnit.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.850,=E:\Projeler\adMaster\components\FireMonkeyVideo\PasLibVlcClassUnit.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.690,=E:\Projeler\adMaster\components\FireMonkeyVideo\D3DX9.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.446,F:\projeler\adMaster\components\FireMonkeyVideo\AnaglyphEffect.pas=F:\projeler\adMaster\components\FireMonkeyVideo\Serkan.AnaglyphEffect.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.909,=E:\Projeler\adMaster\components\FireMonkeyVideo\PasLibVlcUnit.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.011,E:\Projeler\adMaster\components\FireMonkeyVideo\D3DX9.pas=</Transaction>
+  </Transactions>
+</BorlandProject>

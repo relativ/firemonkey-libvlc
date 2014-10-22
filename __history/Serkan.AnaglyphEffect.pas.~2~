@@ -1,0 +1,130 @@
+unit Serkan.AnaglyphEffect;
+
+interface
+
+uses
+  Windows, System.SysUtils, System.Types, System.Classes, FMX.Types,
+  System.UITypes, Math, FMX.Filter.Effects;
+
+type
+  TAnaglyphEffect = class(TImageFXEffect)
+  private
+    FTrimOut, FTrimIn: integer;
+
+    procedure SetTrim(const Value: integer);
+    procedure SetTrimIn(const Value: integer);
+  protected
+    { Protected declarations }
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure ProcessEffect(Canvas: TCanvas; const Visual: TBitmap; const Data: Single); override;
+  published
+    property TrimOut: integer read FTrimOut write SetTrim;
+    property TrimIn: integer read FTrimIn write SetTrimIn;
+  end;
+
+procedure Register;
+
+implementation
+
+procedure Register;
+begin
+  RegisterComponents('VLCMonkey', [TAnaglyphEffect]);
+end;
+
+{ TAnaglyphEffect }
+
+constructor TAnaglyphEffect.Create(AOwner: TComponent);
+begin
+  inherited;
+  FTrimOut := 10;
+end;
+
+destructor TAnaglyphEffect.Destroy;
+begin
+
+  inherited;
+end;
+
+procedure TAnaglyphEffect.ProcessEffect(Canvas: TCanvas; const Visual: TBitmap;
+  const Data: Single);
+const
+  red = 0.299;
+  green = 0.587;
+  blue = 0.114;
+var
+  Bits: PAlphaColorArray;
+  w, h, x, y, i: Integer;
+  rLeft, gLeft, bLeft, newRedLeft : integer;
+  gRight, bRight : integer;
+  alpha, maxTrim: integer;
+  bmp: TBitmap;
+begin
+  Bits := Visual.StartLine;
+
+  h := Visual.height - 1;
+  w := Visual.Width - 1;
+  maxTrim := MaxIntValue([FTrimOut, FTrimIn]);
+  i := 0;
+  for y := 0 to h do
+    for x := 0 to w do
+      begin
+        gLeft := ((Bits[i+FTrimOut] shr  8) and $FF);
+        bLeft := Bits[i+FTrimOut] and $FF;
+        newRedLeft := Round(0.837 * gLeft + 0.163 * bLeft);
+
+        gRight := ((Bits[i+FTrimIn] shr  8) and $FF); //right green
+        bRight := Bits[i+FTrimIn] and $FF;   //right blue
+
+
+        alpha := (Bits[i] shr 24) and $FF; //right
+        Bits[i+1] := ((alpha shl 24) or (newRedLeft shl 16) or (gRight shl 8) or bRight);
+        {
+
+        rLeft := (Bits[i+FTrimOut] shr 16) and $FF; //left
+			//		gLeft := (Bits[i+FTrimOut] shr  8) and $FF;
+			 //		bLeft := Bits[i+FTrimOut] and $FF;
+       //   newRedLeft := Round(red * rLeft + green * gLeft + blue * bLeft);
+
+          gRight := ((Bits[i+FTrimIn] shr  8) and $FF); //right green
+          bRight := Bits[i+FTrimIn] and $FF;   //right blue
+
+
+          alpha := (Bits[i] shr 24) and $FF; //right
+
+          Bits[i+1] := ((alpha shl 24) or (rLeft shl 16) or (gRight shl 8) or bRight);
+                }
+          inc(i);
+      end;
+    {bmp:= TBitmap.Create(0,0);
+    bmp.Assign(Visual);
+    Visual.Canvas.BeginScene;
+    Visual.Canvas.DrawBitmap(bmp, RectF(0,0, bmp.Width-maxTrim, bmp.Height),
+          RectF(0,0, bmp.Width, bmp.Height), 1, True);
+    Visual.Canvas.EndScene;
+    FreeAndNil(bmp); }
+end;
+
+
+procedure TAnaglyphEffect.SetTrim(const Value: integer);
+begin
+  if Value >-1  then
+  begin
+    FTrimOut := Value;
+    UpdateParentEffects;
+  end;
+end;
+
+procedure TAnaglyphEffect.SetTrimIn(const Value: integer);
+begin
+  if Value >-1  then
+  begin
+    FTrimIn := Value;
+    UpdateParentEffects;
+  end;
+end;
+
+initialization
+  RegisterFmxClasses([TAnaglyphEffect]);
+end.

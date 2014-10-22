@@ -1,0 +1,29 @@
+unit VLCInstance;
+
+interface
+
+uses
+  System.SysUtils, System.Classes, PasLibVlcUnit;
+
+type
+  TVLCInstance = class(TComponent)
+  private
+    VLCInstance: libvlc_instance_t_ptr;
+  protected
+    { Protected declarations }
+  public
+    { Public declarations }
+  published
+    { Published declarations }
+  end;
+
+procedure Register;
+
+implementation
+
+procedure Register;
+begin
+  RegisterComponents('VLCMonkey', [TVLCInstance]);
+end;
+
+end.

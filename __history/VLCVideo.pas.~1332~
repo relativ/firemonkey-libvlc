@@ -1,0 +1,960 @@
+{******************************************************************************}
+{                                                                              }
+{          VLCVideo for Firemonkey, Written by Serkan Gunes                    }
+{          Date: 19.11.2011                                                    }
+{          E-mail: srkgns@gmail.com                                            }
+{                                                                              }
+{******************************************************************************}
+unit VLCVideo;
+
+interface
+
+uses
+  Winapi.Windows, System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
+  FMX.Types, FMX.Controls, FMX.Forms, System.SyncObjs, PasLibVlcUnit,
+  FMX.Objects, FMX.Types3D, FMX.Layers3D, System.Generics.Collections, ceffmx,
+  ceflib, math;
+
+Const
+  VideoFormats: array[0..29] of string = (
+    '.264','.3g2','.3gp','.3gp2','.3gpp','.3mm','.asf','.asx','.avi',
+    '.divx','.f4v','.flv','.h264','.m15','.m1v','.m21','.m2a','.m2p',
+    '.mjp','.mjpg','.mkv','.mmv','.mov','.mp4','.mpeg','.mpg','.mpg2',
+    '.ogv','.wmv','.xvid');
+type
+  TNotifySeekableChanged = procedure(Sender : TObject; val      : Boolean) of object;
+  TNotifyPausableChanged = procedure(Sender : TObject; val      : Boolean) of object;
+  TNotifyTitleChanged    = procedure(Sender : TObject; title    : Integer) of object;
+  TNotifySnapshotTaken   = procedure(Sender : TObject; fileName : string)  of object;
+  TNotifyTimeChanged     = procedure(Sender : TObject; time     : Int64)   of object;
+  TNotifyLengthChanged   = procedure(Sender : TObject; time     : Int64)   of object;
+  TNotifyPositionChanged = procedure(Sender : TObject; position : Single)  of object;
+
+  TVLCVideo = class;
+  TCTX = class
+      bStart: boolean;
+      FBuffer: TBitmap;
+      Parent: TVLCVideo;
+      constructor Create;
+      destructor Destroy; override;
+  private
+    procedure ReSize(w, h: integer);
+  end;
+
+  TRGBColor = record
+    R,
+    G,
+    B : Byte;
+  end;
+
+  THSVColor = record
+      Hue , Sat , Val : Double;
+  end;
+
+  T3DType = (dIn , dOut);
+
+  TVLCVideo = class(TImage)
+  private
+    FOldFrames   : array[0..1] of PAlphaColorArray;
+    FFullScreen  : Boolean;
+    FLengthInMs  : Int64;
+    FTimeInMs    : Int64;
+    FPosition    : Single;
+    FDuration    : Int64;
+    FError       : string;
+    FListPosition: integer;
+    FPlayList: TStringList;
+    FTagArrayString: TDictionary<string,string>;
+    FTagPointer: Pointer;
+    CTX: TCTX;
+    VLCInstance: libvlc_instance_t_ptr;
+    bInitSuccedd: boolean;
+    pMediaPlayer: libvlc_media_player_t_ptr;
+    p_mi_ev_mgr : libvlc_event_manager_t_ptr;
+    pMedia: libvlc_media_t_ptr;
+    FOnPlay: TNotifyEvent;
+    FOnStop: TNotifyEvent;
+
+    FOnMediaPlayerMediaChanged     : TNotifyEvent;
+    FOnMediaPlayerNothingSpecial   : TNotifyEvent;
+    FOnMediaPlayerOpening          : TNotifyEvent;
+    FOnMediaPlayerBuffering        : TNotifyEvent;
+    FOnMediaPlayerPlaying          : TNotifyEvent;
+    FOnMediaPlayerPaused           : TNotifyEvent;
+    FOnMediaPlayerStopped          : TNotifyEvent;
+    FOnMediaPlayerForward          : TNotifyEvent;
+    FOnMediaPlayerBackward         : TNotifyEvent;
+    FOnMediaPlayerEndReached       : TNotifyEvent;
+    FOnMediaPlayerEncounteredError : TNotifyEvent;
+    FOnMediaPlayerTimeChanged      : TNotifyTimeChanged;
+    FOnMediaPlayerPositionChanged  : TNotifyPositionChanged;
+    FOnMediaDurationChanged        : TNotifyLengthChanged;
+    FOnMediaPlayerSeekableChanged  : TNotifySeekableChanged;
+    FOnMediaPlayerPausableChanged  : TNotifyPausableChanged;
+    FOnMediaPlayerTitleChanged     : TNotifyTitleChanged;
+    FOnMediaPlayerSnapshotTaken    : TNotifySnapshotTaken;
+    FOnMediaPlayerLengthChanged    : TNotifyLengthChanged;
+    FAnaglyph3D: Boolean;
+    FTrimOut: integer;
+    F3DType: T3DType;
+
+    procedure destroyVLC;
+    procedure FreeMediaPlayer;
+    procedure SetOnPlay(const Value: TNotifyEvent);
+    procedure SetOnStop(const Value: TNotifyEvent);
+    procedure InternalHandleEventPositionChanged(position: Single);
+    procedure InternalHandleEventTimeChanged(time: Int64);
+    procedure InternalHandleEventLengthChanged(time: Int64);
+    procedure libvlc_evt_detach;
+    procedure libvlc_evt_attach;
+    procedure InternalHandleEventDurationChanged(duration: Int64);
+    procedure InternalHandleEventMediaPlayerReached;
+    procedure SetAnaglyph3D(const Value: Boolean);
+    function Make3D(tBits: PAlphaColorArray): TBitmap;
+    function GetVideoPosition: Single;
+    procedure SetVideoPosition(const Value: Single);
+  protected
+    procedure Paint; override;
+    procedure Resize; override;
+  public
+    Handle: THandle;
+    FileName: string;
+    function isVideoFile(fname: string): boolean;
+    function Back: boolean;
+    function Next: boolean;
+    procedure initVLC;
+    procedure assignFiles(fnames: string);
+    procedure setVideoFileName(fname: string);
+    procedure play;
+    procedure stop;
+    procedure pause;
+    procedure setVolume(vol: integer);
+    function getVolume: integer;
+
+    class procedure unloadDll; static;
+    class procedure loadDll; static;
+
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    property TagPointer: Pointer read FTagPointer write FTagPointer;
+    property TagArrayString: TDictionary<string,string> read FTagArrayString write FTagArrayString;
+    property VideoLengthInMS: Int64 read FLengthInMs;
+    property VideoDuration: Int64 read FDuration;
+    procedure FullScreen;
+    procedure SetPosition(Position: single);
+  published
+    property Anaglyph3DSize: integer read FTrimOut write FTrimOut;
+    property AnaglyphType: T3DType read F3DType write F3DType;
+    property Anaglyph3D: Boolean read FAnaglyph3D write SetAnaglyph3D;
+    property Volume: integer read getVolume write setVolume; // Max Value 200
+    property OnPlay: TNotifyEvent read FOnPlay write SetOnPlay;
+    property OnStop: TNotifyEvent read FOnStop write SetOnStop;
+    property VideoPosition: Single read GetVideoPosition write SetVideoPosition;
+    property OnMediaPlayerMediaChanged     : TNotifyEvent
+      read  FOnMediaPlayerMediaChanged
+      write FOnMediaPlayerMediaChanged;
+
+    property OnMediaPlayerNothingSpecial   : TNotifyEvent
+      read  FOnMediaPlayerNothingSpecial
+      write FOnMediaPlayerNothingSpecial;
+
+    property OnMediaPlayerOpening          : TNotifyEvent
+      read  FOnMediaPlayerOpening
+      write FOnMediaPlayerOpening;
+
+    property OnMediaPlayerBuffering        : TNotifyEvent
+      read  FOnMediaPlayerBuffering
+      write FOnMediaPlayerBuffering;
+
+    property OnMediaPlayerPlaying          : TNotifyEvent
+      read  FOnMediaPlayerPlaying
+      write FOnMediaPlayerPlaying;
+
+    property OnMediaPlayerPaused           : TNotifyEvent
+      read  FOnMediaPlayerPaused
+      write FOnMediaPlayerPaused;
+
+    property OnMediaPlayerStopped          : TNotifyEvent
+      read  FOnMediaPlayerStopped
+      write FOnMediaPlayerStopped;
+
+    property OnMediaPlayerForward          : TNotifyEvent
+      read  FOnMediaPlayerForward
+      write FOnMediaPlayerForward;
+
+    property OnMediaPlayerBackward         : TNotifyEvent
+      read  FOnMediaPlayerBackward
+      write FOnMediaPlayerBackward;
+
+    property OnMediaPlayerEndReached       : TNotifyEvent
+      read  FOnMediaPlayerEndReached
+      write FOnMediaPlayerEndReached;
+
+    property OnMediaPlayerEncounteredError : TNotifyEvent
+      read  FOnMediaPlayerEncounteredError
+      write FOnMediaPlayerEncounteredError;
+
+    property OnMediaPlayerTimeChanged      : TNotifyTimeChanged
+      read  FOnMediaPlayerTimeChanged
+      write FOnMediaPlayerTimeChanged;
+
+    property OnMediaPlayerPositionChanged  : TNotifyPositionChanged
+      read  FOnMediaPlayerPositionChanged
+      write FOnMediaPlayerPositionChanged;
+
+    property OnMediaDurationChanged        : TNotifyLengthChanged
+      read  FOnMediaDurationChanged
+      write FOnMediaDurationChanged;
+
+    property OnMediaPlayerSeekableChanged  : TNotifySeekableChanged
+      read  FOnMediaPlayerSeekableChanged
+      write FOnMediaPlayerSeekableChanged;
+
+    property OnMediaPlayerPausableChanged  : TNotifyPausableChanged
+      read  FOnMediaPlayerPausableChanged
+      write FOnMediaPlayerPausableChanged;
+
+    property OnMediaPlayerTitleChanged     : TNotifyTitleChanged
+      read  FOnMediaPlayerTitleChanged
+      write FOnMediaPlayerTitleChanged;
+
+    property OnMediaPlayerSnapshotTaken    : TNotifySnapshotTaken
+      read  FOnMediaPlayerSnapshotTaken
+      write FOnMediaPlayerSnapshotTaken;
+
+    property OnMediaPlayerLengthChanged    : TNotifyLengthChanged
+      read  FOnMediaPlayerLengthChanged
+      write FOnMediaPlayerLengthChanged;
+  end;
+
+  function VLCLock(opaque: Pointer; plane: Pointer): Pointer; cdecl;
+  function VLCUnlock(opaque: Pointer; picture: Pointer; plane: Pointer): pointer; cdecl;
+  function VLCdisplay(opaque: Pointer; picture: Pointer): pointer; cdecl;
+  procedure lib_vlc_player_event_hdlr(p_event: libvlc_event_t_ptr; data: Pointer); cdecl;
+
+procedure Register;
+
+implementation
+
+
+procedure Register;
+begin
+  RegisterComponents('VLCMonkey', [TVLCVideo]);
+end;
+
+{ TVLCVideo }
+
+procedure TVLCVideo.pause;
+begin
+  if pMediaPlayer <> nil then
+  begin
+    libvlc_media_player_pause(pMediaPlayer);
+  end;
+end;
+
+procedure TVLCVideo.play;
+begin
+  if pMedia<>nil then
+  begin
+    libvlc_media_player_play(pMediaPlayer);
+  end;
+end;
+
+
+procedure TVLCVideo.FreeMediaPlayer;
+begin
+  if pMediaPlayer <> nil then
+  begin
+    stop;
+    libvlc_evt_detach;
+    libvlc_media_player_release(pMediaPlayer);
+    pMediaPlayer := nil;
+    CTX.bStart := false;
+  end;
+end;
+
+procedure TVLCVideo.FullScreen;
+begin
+  if pMediaPlayer <> nil then
+  begin
+    FFullScreen := not FFullScreen;
+    libvlc_set_fullscreen(pMediaPlayer, integer(FFullScreen));
+  end;
+end;
+
+
+procedure TVLCVideo.libvlc_evt_attach;
+begin
+  p_mi_ev_mgr := libvlc_media_player_event_manager(pMediaPlayer);
+
+  if Assigned(p_mi_ev_mgr) then
+  begin
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerMediaChanged,     lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerNothingSpecial,   lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerOpening,          lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerBuffering,        lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerPlaying,          lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerPaused,           lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerStopped,          lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerForward,          lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerBackward,         lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerEndReached,       lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerEncounteredError, lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerTimeChanged,      lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerPositionChanged,  lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaDurationChanged,        lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerSeekableChanged,  lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerPausableChanged,  lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerTitleChanged,     lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerSnapshotTaken,    lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_attach(p_mi_ev_mgr, libvlc_MediaPlayerLengthChanged,    lib_vlc_player_event_hdlr, SELF);
+  end;
+end;
+
+procedure TVLCVideo.libvlc_evt_detach;
+begin
+  if Assigned(p_mi_ev_mgr) then
+  begin
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerMediaChanged,     lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerNothingSpecial,   lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerOpening,          lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerBuffering,        lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerPlaying,          lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerPaused,           lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerStopped,          lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerForward,          lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerBackward,         lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerEndReached,       lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerEncounteredError, lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerTimeChanged,      lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerPositionChanged,  lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaDurationChanged,        lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerSeekableChanged,  lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerPausableChanged,  lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerTitleChanged,     lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerSnapshotTaken,    lib_vlc_player_event_hdlr, SELF);
+    libvlc_event_detach(p_mi_ev_mgr, libvlc_MediaPlayerLengthChanged,    lib_vlc_player_event_hdlr, SELF);
+  end;
+end;
+
+function TVLCVideo.getVolume: integer;
+var
+  i: integer;
+begin
+  i := 0;
+  if pMediaPlayer<>nil then
+    i := libvlc_audio_get_volume(pMediaPlayer);
+  Result := i;
+end;
+
+procedure TVLCVideo.initVLC;
+var
+  vlcargs : array[0..0] of PAnsiChar;
+begin
+  if VLCInstance <> nil then exit;
+  if not bInitSuccedd then
+  begin
+    vlcargs[0] := PAnsiChar(AnsiString(libvlc_dynamic_dll_path));
+  //  args[2] := nil;
+    VLCInstance := libvlc_new(Length(vlcargs), @vlcargs);
+    bInitSuccedd := true;
+  end;
+end;
+
+procedure TVLCVideo.destroyVLC;
+begin
+  if (Assigned(libvlc_release)) then
+  begin
+    if (VLCInstance <> NIL) then
+    begin
+      if pMedia<>nil then
+        libvlc_media_release(pMedia);
+      FreeMediaPlayer;
+      libvlc_release(VLCInstance);
+    end;
+  end;
+end;
+
+class procedure TVLCVideo.unloadDll;
+begin
+  libvlc_dynamic_dll_done();
+end;
+
+class procedure TVLCVideo.loadDll;
+begin
+
+  libvlc_dynamic_dll_init();
+end;
+
+procedure TVLCVideo.setVideoFileName(fname: string);
+var
+  s: PAnsiChar;
+begin
+  FreeMediaPlayer;
+  s :=PAnsiChar(AnsiString(fname));
+  if pMedia<> nil then
+  begin
+    libvlc_media_release(pMedia);
+    pMedia := nil;
+  end;
+  pMedia:=libvlc_media_new_path(VLCInstance, s);
+  pMediaPlayer:=libvlc_media_player_new_from_media(pMedia);
+  libvlc_video_set_callbacks(pMediaPlayer, VLCLock, VLCUnlock, VLCdisplay, @CTX);
+  libvlc_video_set_format(pMediaPlayer, 'RV32', Round(Width), Round(Height), Round(Width)*4);
+
+  libvlc_evt_attach;
+
+end;
+
+procedure TVLCVideo.SetVideoPosition(const Value: Single);
+begin
+  if pMediaPlayer <> nil then
+    libvlc_media_player_set_position(pMediaPlayer, Value);
+end;
+
+procedure TVLCVideo.assignFiles(fnames: string);
+begin
+  FPlayList.Text := StringReplace(fnames, '&#xD;', #13, [rfReplaceAll]);
+  FListPosition := -1;
+end;
+
+function TVLCVideo.Next: boolean;
+begin
+  Result := false;
+  if FListPosition < FPlayList.Count then
+  begin
+    Inc(FListPosition);
+    FileName := FPlayList[FListPosition];
+    setVideoFileName(FileName);
+    Self.Visible := true;
+    Result := True;
+  end;
+end;
+
+function TVLCVideo.Back: boolean;
+begin
+  Result := false;
+  if FListPosition = 0 then
+    exit;
+  Dec(FListPosition);
+  FileName := FPlayList[FListPosition];
+  setVideoFileName(FPlayList[FListPosition]);
+  Self.Visible := true;
+  Result := true;
+end;
+
+function TVLCVideo.isVideoFile(fname: string): boolean;
+var
+  I: Integer;
+begin
+  Result := false;
+  for I := Low(VideoFormats) to High(VideoFormats) do
+  begin
+    if Pos(VideoFormats[I], fname) > 0 then
+      Result := true;
+  end;
+end;
+
+constructor TVLCVideo.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FFullScreen := false;
+  FTagArrayString:= TDictionary<string,string>.Create;
+  CTX := TCTX.Create();
+  CTX.Parent := Self;
+  CTX.bStart := false;
+  FPlayList:= TStringList.Create;
+  FTrimOut := 10;
+  F3DType  := dIn;
+end;
+
+destructor TVLCVideo.Destroy;
+begin
+  FPlayList.Free;
+  FTagArrayString.Free;
+  destroyVLC;
+  CTX.Free;
+  inherited;
+end;
+
+procedure TVLCVideo.Resize;
+var
+  I,iMax: integer;
+  iPos: Single;
+begin
+  inherited;
+  iPos := -1;
+  if pMediaPlayer <> nil then
+  begin
+    iPos := GetVideoPosition;
+    stop;
+    libvlc_video_set_format(pMediaPlayer, 'RV32', Round(Width), Round(Height), Round(Width)*4);
+    iMax   := High(FOldFrames);
+    for I := 0 to iMax do
+    begin
+        if FOldFrames[I] <> nil then
+        begin
+          FreeMem(FOldFrames[I]);
+          FOldFrames[I] := nil;
+        end;
+    end;
+  end;
+  if CTX <> nil then
+    CTX.ReSize(Round(Width), Round(Height));
+  if pMediaPlayer <> nil then
+  begin
+    play;
+    VideoPosition := iPos;
+  end;
+end;
+
+procedure TVLCVideo.SetAnaglyph3D(const Value: Boolean);
+begin
+  FAnaglyph3D := Value;
+end;
+
+procedure TVLCVideo.SetOnPlay(const Value: TNotifyEvent);
+begin
+  FOnPlay := Value;
+end;
+
+procedure TVLCVideo.SetOnStop(const Value: TNotifyEvent);
+begin
+  FOnStop := Value;
+end;
+
+procedure TVLCVideo.SetPosition(Position: single);
+begin
+  if pMediaPlayer<> nil then
+    libvlc_media_player_set_position(pMediaPlayer, Position);
+end;
+
+procedure TVLCVideo.setVolume(vol: integer);
+begin
+  if pMediaPlayer <> nil then
+  begin
+    libvlc_audio_set_volume(pMediaPlayer, vol);
+  end;
+end;
+
+procedure TVLCVideo.stop;
+begin
+  if pMediaPlayer <> nil then
+  begin
+    CTX.bStart := false;
+    libvlc_media_player_stop(pMediaPlayer);
+  end;
+end;
+
+procedure TVLCVideo.InternalHandleEventPositionChanged(position: Single);
+begin
+  SELF.FPosition := position;
+  if Assigned(OnMediaPlayerPositionChanged) then
+    OnMediaPlayerPositionChanged(SELF, position);
+end;
+
+procedure TVLCVideo.InternalHandleEventDurationChanged(duration: Int64);
+begin
+  SELF.FDuration := duration;
+  if Assigned(OnMediaDurationChanged) then
+    OnMediaDurationChanged(SELF, duration);
+end;
+
+procedure TVLCVideo.InternalHandleEventTimeChanged(time: Int64);
+begin
+  SELF.FTimeInMs := time;
+  if Assigned(OnMediaPlayerTimeChanged) then
+    OnMediaPlayerTimeChanged(SELF, time);
+end;
+
+procedure TVLCVideo.InternalHandleEventLengthChanged(time: Int64);
+begin
+  SELF.FLengthInMs := time;
+  if Assigned(OnMediaPlayerLengthChanged) then
+    OnMediaPlayerLengthChanged(SELF, time);
+end;
+
+procedure TVLCVideo.InternalHandleEventMediaPlayerReached();
+begin
+  FreeMediaPlayer;
+  if Assigned(OnMediaPlayerEndReached) then
+    OnMediaPlayerEndReached(SELF);
+end;
+
+function AlignWord(const x: Integer): Integer;
+begin
+   Result := (x + 1) and not 1;
+end;
+
+function RGB2HSV (RGB: TRGBColor) : THSVColor;
+var
+  H , S , V : Single ;
+  C: TAlphaColor;
+begin
+  TAlphaColorRec(C).R := RGB.R;
+  TAlphaColorRec(C).G := RGB.G;
+  TAlphaColorRec(C).B := RGB.B;
+  RGBtoHSL(C, H, S, V);
+  Result.Hue := H;
+  Result.Sat := S;
+  Result.Val := V;
+end;
+
+function HSV2RGB (HSV: THSVColor) : TRGBColor;
+var
+  C: TAlphaColor;
+begin
+
+  C := HSLtoRGB(HSV.Hue, HSV.Sat, HSV.Val);
+  Result.R := TAlphaColorRec(C).R;
+  Result.G := TAlphaColorRec(C).G;
+  Result.B := TAlphaColorRec(C).B;
+end;
+
+var
+  iCutSize: integer;
+
+function TVLCVideo.Make3D(tBits: PAlphaColorArray): TBitmap;
+const
+  red = 0.299;
+  green = 0.587;
+  blue = 0.114;
+var
+  Bits,lBits, rBits: PAlphaColorArray;
+  w, h, x, y, i: Integer;
+  rLeft : integer;
+  gRight, bRight : integer;
+  alpha: integer;
+  lImg: TBitmap;
+  leftRed, leftBlue, iTmp: integer;
+begin
+ // ipos := GetTickCount;
+
+  h := Round(Height);
+  w := Round(Width);// MaxIntValue([lImg.Width, rImg.Width]);
+
+  GetMem(lBits, w*h*4);
+  FillChar(lBits^, w*h*4, 0);
+  CopyMemory(lBits, tBits, w*h*4);
+
+  GetMem(rBits, w*h*4);
+  FillChar(rBits^, w*h*4, 0);
+  CopyMemory(rBits, tBits, w*h*4);
+
+  lImg:= TBitmap.Create(w,h);
+  Bits := lImg.StartLine;
+  try
+ //   CopyMemory(lImg.StartLine, lBits, w*h*4);
+ //
+    i := 0;
+    iCutSize := 0;
+
+    for y := 0 to h-1 do
+      for x := 0 to w-1 do
+        begin
+{          if y > h-trimH then
+            FillChar(bmp.ScanLine[y]^, w * 4, 0)
+          else begin   }
+
+                        // Butun koselere goree hesap               Ust ve alta gore ayari saglamlastirma
+//            if (y * x <= w*h div 2) then
+//            begin
+              leftRed  := Round(((((y * h / 2) + (x * w / 2)) * (FTrimOut * 3)) / (w*h / 2)) + ((((h-y) / h) * FTrimOut) / 1.5));
+//              leftRed  := Round(((y * x * (FTrimOut * 3)) / (w*h / 2)) + ((((h-y) / h) * FTrimOut) / 1.5));
+//            end else begin
+//              leftRed  := Round(( (((w*h)  - (y * x))  * (FTrimOut * 3)) / (w*h /2)));
+
+//            end;
+
+            leftBlue := Round(((FTrimOut * 3) - leftRed) / 2) ;
+            leftRed := leftRed + 5;
+            iCutSize := MaxIntValue([iCutSize, leftRed]);
+            if F3DType = dOut then
+            begin
+              iTmp     := leftBlue;
+              leftBlue := leftRed;
+              leftRed  := iTmp;
+//              leftRed  := 0;
+            end;
+          //  leftRed  := leftBlue - leftRed;
+          //  if leftRed < 0 then leftRed := leftRed * -1;
+
+
+            rLeft := (rBits[i + leftRed] shr 16) and $FF;
+
+            gRight := ((lBits[i + leftBlue] shr  8) and $FF); //right
+            bRight := lBits[i + leftBlue] and $FF;   //right
+            alpha := (lBits[i + leftBlue] shr 24) and $FF; //right
+
+            Bits[i+1] := ((alpha shl 24) or (rLeft shl 16) or (gRight shl 8) or bRight);
+
+
+          {  rLeft := (Bits[i] shr 16) and $FF; //left
+            gLeft := (Bits[i] shr  8) and $FF;
+            bLeft := Bits[i] and $FF;
+            newRedLeft := Round(red * rLeft + green * gLeft + blue * bLeft);
+
+            gRight := ((Bits[i] shr  8) and $FF); //right
+            bRight := Bits[i] and $FF;   //right
+
+
+            alpha := (Bits[i] shr 24) and $FF; //right
+
+            Bits[i+1] := ((alpha shl 24) or (newRedLeft shl 16) or (gRight shl 8) or bRight); }
+
+           { if x > w - FTrimOut then
+              bmp.ScanLine[y]^[x] := 0; }
+
+      //    end;
+          inc(i);
+        end;
+        {bmp.Canvas.BeginScene;
+        bmp.Canvas.DrawBitmap(lImg, RectF(0,0, w, h), RectF(0,0, w, h), 1, true );
+        bmp.Canvas.EndScene; }
+  finally
+    FreeMem(lBits);
+    FreeMem(rBits);
+    //bmp.Assign(lImg);
+    //FreeAndNil(lImg);
+    Result := lImg;
+  end;
+end;
+
+
+function TVLCVideo.GetVideoPosition: Single;
+begin
+  if pMediaPlayer <> nil then
+    Result := libvlc_media_player_get_position(pMediaPlayer)
+  else
+    Result := -1;
+end;
+
+{function TVLCVideo.GetOldFrame: PAlphaColorArray;
+begin
+  Result := FOldFrames[0];
+end;
+
+function TVLCVideo.GetNewFrame: PAlphaColorArray;
+begin
+  Result := FOldFrames[High(FOldFrames)];
+end;
+
+function TVLCVideo.PutInOldFrame(bits: PAlphaColorArray): boolean;
+var
+  I,iMax: Integer;
+begin
+  iMax   := High(FOldFrames);
+  for I := 0 to iMax do
+  begin
+    if I > 0 then
+    begin
+      if FOldFrames[I] <> nil then
+      begin
+        FreeMem(FOldFrames[I-1]);
+        GetMem(FOldFrames[I-1], CTX.FBuffer.Width*CTX.FBuffer.Height*4);
+        MoveMemory(FOldFrames[I-1], FOldFrames[I], CTX.FBuffer.Width*CTX.FBuffer.Height*4);
+        FreeMem(FOldFrames[I]);
+        FOldFrames[I] := nil;
+      end;
+    end;
+  end;
+
+  GetMem(FOldFrames[iMax], CTX.FBuffer.Width*CTX.FBuffer.Height*4);
+  FillChar(FOldFrames[iMax]^, CTX.FBuffer.Width*CTX.FBuffer.Height*4, 0);
+  CopyMemory(FOldFrames[iMax], bits, CTX.FBuffer.Width*CTX.FBuffer.Height*4);
+  Result := FOldFrames[0] <> nil;
+end; }
+
+procedure TVLCVideo.Paint;
+var
+  tbmp: TBitmap;
+begin
+ inherited Paint;
+ if (CTX.FBuffer <> nil) and (CTX.bStart) then
+ begin
+    if ctx.Parent.Anaglyph3D then
+    begin
+        tbmp := Make3D(CTX.FBuffer.StartLine);
+        Bitmap.Canvas.BeginScene;
+        Bitmap.Canvas.DrawBitmap(tbmp, RectF(0,0, tbmp.Width - ((FTrimOut * 3) + (FTrimOut / 2) + 5), tbmp.Height),
+            RectF(Position.X,Position.Y, Position.X + Width, Position.Y + Height), 1, true);
+        Bitmap.Canvas.EndScene;
+    end else begin
+      tbmp := TBitmap.Create(Round(Width),Round(Height));
+      CopyMemory(tbmp.StartLine, CTX.FBuffer.StartLine, Round(Width)*Round(Height)*4);
+      Bitmap.Assign(tbmp);
+    end;
+    FreeAndNil(tbmp);
+ end;
+end;
+
+{ TCTX }
+
+var
+  vlcMutex, mutexGraph: TCriticalSection;
+
+constructor TCTX.Create;
+begin
+  inherited Create;
+end;
+
+destructor TCTX.Destroy;
+begin
+  FBuffer.Free;
+  inherited;
+end;
+
+procedure TCTX.ReSize(w,h: integer);
+begin
+  mutexGraph.Enter;
+  if FBuffer = nil then
+    FBuffer := TBitmap.Create(w, h)
+  else
+    FBuffer.SetSize(w,h);
+  mutexGraph.Leave;
+end;
+
+
+{ TStaticCallbacks }
+
+function VLCdisplay(opaque, picture: Pointer): pointer; cdecl;
+var
+  ctx: TCTX;
+begin
+  Result := nil;
+  if opaque <> nil then
+  begin
+    ctx := TCTX(opaque^);
+    ctx.FBuffer.UpdateHandles;
+    ctx.FBuffer.BitmapChanged;
+    ctx.bStart := true;
+    ctx.Parent.InvalidateRect(ctx.Parent.BoundsRect);
+  end;
+end;
+
+function VLCLock(opaque, plane: Pointer): Pointer; cdecl;
+var
+  ctx: TCTX;
+begin
+  mutexGraph.Enter;
+  ctx := TCTX(opaque^);
+  Pointer(plane^) := @(ctx.FBuffer.StartLine[0]);
+  Result := nil;
+//  vlcMutex.Enter;
+end;
+
+function VLCUnlock(opaque, picture, plane: Pointer): pointer; cdecl;
+begin
+  mutexGraph.Leave;
+  Result := nil;
+end;
+
+
+
+procedure lib_vlc_player_event_hdlr(p_event: libvlc_event_t_ptr; data: Pointer); cdecl;
+var
+  player: TVLCVideo;
+begin
+  if (data = NIL) then exit;
+  vlcMutex.Enter;
+  player := TVLCVideo(data);
+
+  if not Assigned(player) then exit;
+
+  case p_event^.event_type of
+
+    libvlc_MediaPlayerMediaChanged:
+    begin
+      if Assigned(player.OnMediaPlayerMediaChanged) then
+        player.OnMediaPlayerMediaChanged(player);
+    end;
+
+    libvlc_MediaPlayerNothingSpecial:
+      if Assigned(player.OnMediaPlayerNothingSpecial) then
+        player.OnMediaPlayerNothingSpecial(player);
+
+    libvlc_MediaPlayerOpening:
+      if Assigned(player.OnMediaPlayerOpening) then
+        player.OnMediaPlayerOpening(player);
+
+    libvlc_MediaPlayerBuffering:
+      if Assigned(player.OnMediaPlayerBuffering) then
+        player.OnMediaPlayerBuffering(player);
+
+    libvlc_MediaPlayerPlaying:
+      if Assigned(player.OnMediaPlayerPlaying) then
+        player.OnMediaPlayerPlaying(player);
+
+    libvlc_MediaPlayerPaused:
+      if Assigned(player.OnMediaPlayerPaused) then
+        player.OnMediaPlayerPaused(player);
+
+    libvlc_MediaPlayerStopped:
+      if Assigned(player.OnMediaPlayerStopped) then
+        player.OnMediaPlayerStopped(player);
+
+    libvlc_MediaPlayerForward:
+      if Assigned(player.OnMediaPlayerForward) then
+        player.OnMediaPlayerForward(player);
+
+    libvlc_MediaPlayerBackward:
+      if Assigned(player.OnMediaPlayerBackward) then
+        player.OnMediaPlayerBackward(player);
+
+    libvlc_MediaPlayerEndReached:
+        player.InternalHandleEventMediaPlayerReached;
+
+    libvlc_MediaPlayerEncounteredError: begin
+      player.FError := string(libvlc_errmsg());
+      if Assigned(player.OnMediaPlayerEncounteredError) then
+        player.OnMediaPlayerEncounteredError(player);
+    end;
+
+    libvlc_MediaPlayerTimeChanged:
+      player.InternalHandleEventTimeChanged(
+        p_event^.media_player_time_changed.new_time);
+
+    libvlc_MediaPlayerPositionChanged:
+      player.InternalHandleEventPositionChanged(
+        p_event^.media_player_position_changed.new_position);
+
+    libvlc_MediaDurationChanged:
+      player.InternalHandleEventDurationChanged(
+        p_event^.media_duration_changed.new_duration);
+
+    libvlc_MediaPlayerSeekableChanged:
+      if Assigned(player.OnMediaPlayerSeekableChanged) then
+        player.OnMediaPlayerSeekableChanged(player,
+          p_event^.media_player_seekable_changed.new_seekable <> 0);
+
+    libvlc_MediaPlayerPausableChanged:
+      if Assigned(player.OnMediaPlayerPausableChanged) then
+        player.OnMediaPlayerPausableChanged(player,
+          p_event^.media_player_pausable_changed.new_pausable <> 0);
+
+    libvlc_MediaPlayerTitleChanged:
+      if Assigned(player.OnMediaPlayerTitleChanged) then
+        player.OnMediaPlayerTitleChanged(player,
+          p_event^.media_player_title_changed.new_title);
+
+    libvlc_MediaPlayerSnapshotTaken:
+      if Assigned(player.OnMediaPlayerSnapshotTaken) then
+        player.OnMediaPlayerSnapshotTaken(player,
+          string(p_event^.media_player_snapshot_taken.psz_filename));
+
+    libvlc_MediaPlayerLengthChanged:
+      player.InternalHandleEventLengthChanged(
+        p_event^.media_player_length_changed.new_length);
+  end;
+  vlcMutex.Leave;
+end;
+
+initialization
+  vlcMutex  := TCriticalSection.Create;
+  mutexGraph:= TCriticalSection.Create;
+finalization
+  vlcMutex.Free;
+  mutexGraph.Free;
+
+
+end.
